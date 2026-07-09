@@ -50,6 +50,20 @@ function BaniCore({ mode }: BaniCoreProps) {
         sacredWordOverlay
     } = useSpeechRecognition(shabads.length > 0);
 
+    const resetTranscriptionState = useCallback(() => {
+        setShabads([]);
+        resetTranscription();
+        setLastSggsMatchFound(null);
+        setLastBestSggsMatch(null);
+        setShowLoader(true);
+        shabadsLoadedRef.current = false;
+        transcriptionSentRef.current = false;
+        wordCountTriggeredRef.current = false;
+        processedWordCountRef.current = 0;
+        setPreviousShabadId(null);
+        kirtanConfirmedRef.current = false;
+    }, [resetTranscription]);
+
     type ShabadMergeMode = 'append' | 'replace';
 
     const fetchAndAttachShabad = useCallback(
@@ -97,9 +111,9 @@ function BaniCore({ mode }: BaniCoreProps) {
                     if (mode === 'kirtan' && opts?.kirtanBatchWordCount != null) {
                         processedWordCountRef.current += opts.kirtanBatchWordCount;
                     }
-                    setUserMessage('No results found. Refreshing...');
+                    setUserMessage('No results found. Resetting...');
                     setTimeout(() => {
-                        window.location.reload();
+                        resetTranscriptionState();
                     }, 1000);
                     return;
                 }
@@ -148,15 +162,15 @@ function BaniCore({ mode }: BaniCoreProps) {
                 console.error('Transcription error:', err);
                 transcriptionSentRef.current = false;
                 wordCountTriggeredRef.current = false;
-                setUserMessage('Could not complete search. Refreshing...');
+                setUserMessage('Could not complete search. Resetting...');
                 setTimeout(() => {
-                    window.location.reload();
+                    resetTranscriptionState();
                 }, 1000);
             } finally {
                 setIsProcessing(false);
             }
         },
-        [fetchAndAttachShabad, searchTriggered, isProcessing, noSpeechCount, mode, previousShabadId]
+        [fetchAndAttachShabad, searchTriggered, isProcessing, noSpeechCount, mode, previousShabadId, resetTranscriptionState]
     );
 
     // Trigger transcription: kirtan = first 8 words then next 8; paath = single 8-word send
@@ -264,19 +278,6 @@ function BaniCore({ mode }: BaniCoreProps) {
         }
     }, [showLoader, lastSggsMatchFound, lastBestSggsMatch]);
 
-    const resetTranscriptionState = useCallback(() => {
-        setShabads([]);
-        resetTranscription();
-        setLastSggsMatchFound(null);
-        setLastBestSggsMatch(null);
-        setShowLoader(true);
-        shabadsLoadedRef.current = false;
-        transcriptionSentRef.current = false;
-        wordCountTriggeredRef.current = false;
-        processedWordCountRef.current = 0;
-        setPreviousShabadId(null);
-        kirtanConfirmedRef.current = false;
-    }, [resetTranscription]);
 
     // Automatically start speech recognition on mount - SpeechRecognitionManager handles all restarts internally
     useEffect(() => {

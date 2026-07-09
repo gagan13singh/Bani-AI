@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 import logging
 import os
+import asyncio
 import time
 import unicodedata
 import sqlite3
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Pydantic models for REST API
 class TranscriptionRequest(BaseModel):
-    text: str
+    text: str = Field(..., max_length=500)
     confidence: float
     session_id: Optional[str] = None
 
@@ -172,7 +173,15 @@ async def root():
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "service": "Bani AI Transcription"}
+    is_healthy = DATABASE_LOADED and DATABASE_4WORDS_LOADED
+    return {
+        "status": "healthy" if is_healthy else "degraded",
+        "service": "Bani AI Transcription",
+        "main_database_loaded": DATABASE_LOADED,
+        "main_verse_count": len(VERSES_DATA),
+        "repetition_database_loaded": DATABASE_4WORDS_LOADED,
+        "repetition_verse_count": len(VERSES_DATA_4WORDS)
+    }
 
 @app.post("/api/transcribe")
 async def transcribe_and_search(request: TranscriptionRequest) -> TranscriptionResponse:
@@ -183,7 +192,10 @@ async def transcribe_and_search(request: TranscriptionRequest) -> TranscriptionR
     logger.info(f"Received transcription: {transcribed_text} (confidence: {confidence})")
 
     # Fuzzy search database
-    best_verse, best_shabad_id, best_score = fuzzy_search_database(transcribed_text, FUZZY_THRESHOLD)
+    loop = asyncio.get_event_loop()
+    best_verse, best_shabad_id, best_score = await loop.run_in_executor(
+        None, fuzzy_search_database, transcribed_text, FUZZY_THRESHOLD
+    )
     logger.info(f"Fuzzy search threshold: {FUZZY_THRESHOLD}")
     
     sggs_match_found = False
@@ -222,7 +234,10 @@ if os.getenv("ENABLE_DEBUG_ENDPOINTS", "false").lower() == "true":
     @app.get("/api/test-database-search")
     async def test_database_search_endpoint(query: str):
         """Test endpoint to check database fuzzy search functionality"""
-        best_verse, best_shabad_id, best_score = fuzzy_search_database(query)
+        loop = asyncio.get_event_loop()
+        best_verse, best_shabad_id, best_score = await loop.run_in_executor(
+            None, fuzzy_search_database, query
+        )
         
         return {
             "query": query,
