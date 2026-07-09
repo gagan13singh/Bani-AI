@@ -33,9 +33,10 @@ class TranscriptionResponse(BaseModel):
 app = FastAPI(title="Bani AI Transcription", version="1.0.0")
 
 # CORS middleware for frontend communication
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -217,25 +218,26 @@ async def transcribe_and_search(request: TranscriptionRequest) -> TranscriptionR
 
 
 
-@app.get("/api/test-database-search")
-async def test_database_search_endpoint(query: str):
-    """Test endpoint to check database fuzzy search functionality"""
-    best_verse, best_shabad_id, best_score = fuzzy_search_database(query)
-    
-    return {
-        "query": query,
-        "database_loaded": DATABASE_LOADED,
-        "total_verses": len(VERSES_DATA),
-        "best_match": {
-            "verse": best_verse,
-            "shabad_id": best_shabad_id,
-            "score": best_score
-        } if best_verse else None,
-        "configuration": {
-            "fuzzy_threshold": FUZZY_THRESHOLD,
-            "scorer": "fuzz.ratio"
+if os.getenv("ENABLE_DEBUG_ENDPOINTS", "false").lower() == "true":
+    @app.get("/api/test-database-search")
+    async def test_database_search_endpoint(query: str):
+        """Test endpoint to check database fuzzy search functionality"""
+        best_verse, best_shabad_id, best_score = fuzzy_search_database(query)
+        
+        return {
+            "query": query,
+            "database_loaded": DATABASE_LOADED,
+            "total_verses": len(VERSES_DATA),
+            "best_match": {
+                "verse": best_verse,
+                "shabad_id": best_shabad_id,
+                "score": best_score
+            } if best_verse else None,
+            "configuration": {
+                "fuzzy_threshold": FUZZY_THRESHOLD,
+                "scorer": "fuzz.ratio"
+            }
         }
-    }
 
 @app.on_event("startup")
 async def startup_event():
